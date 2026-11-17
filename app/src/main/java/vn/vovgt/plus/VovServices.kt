@@ -27,6 +27,9 @@ class VovApplication : android.app.Application() {
         )
         OfflineStore.manager.addListener(object : DownloadManager.Listener {
             override fun onDownloadChanged(manager: DownloadManager, download: Download, finalException: Exception?) {
+                if (download.state == Download.STATE_COMPLETED) {
+                    AudioExportState.request(this@VovApplication, download)
+                }
                 val title = when (download.state) {
                     Download.STATE_COMPLETED -> "Tải hoàn tất"
                     Download.STATE_FAILED -> "Không thể tải chương trình"
