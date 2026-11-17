@@ -321,7 +321,7 @@ private fun ScheduleScreen(
         if (programs.isEmpty()) {
             item {
                 GlassCard {
-                    Icon(Icons.Default.InfoOutline, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.height(7.dp))
                     Text("Chưa có lịch phát lại cho khu vực này", fontWeight = FontWeight.Bold)
                     Text("Bạn vẫn có thể nghe trực tiếp Duyên Hải ở tab Trực tiếp.",
@@ -553,7 +553,7 @@ private fun AccountScreen(confirmed: Boolean, onConfirmed: () -> Unit, onLogout:
         Spacer(Modifier.height(16.dp))
         GlassCard {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(if (confirmed) Icons.Default.VerifiedUser else Icons.Default.LockOutline, null,
+                Icon(if (confirmed) Icons.Default.VerifiedUser else Icons.Default.Lock, null,
                     tint = MaterialTheme.colorScheme.primary)
                 Spacer(Modifier.width(10.dp))
                 Column {
