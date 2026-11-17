@@ -503,6 +503,17 @@ private fun HistoryScreen(onListen: (String, String) -> Unit, report: (String) -
                     Column(Modifier.weight(1f)) {
                         Text(OfflineStore.title(d), fontWeight = FontWeight.Bold, maxLines = 2)
                         Text(label, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (completed) {
+                            val exportStatus = AudioExportState.status(context, d.request.id)
+                            val exportLabel = when (exportStatus) {
+                                "queued" -> "Đang chờ xuất file M4A…"
+                                "exporting" -> "Đang tạo file M4A…"
+                                "done" -> "Đã lưu: Download/VOV Giao Thong+"
+                                "failed" -> "Xuất M4A lỗi: ${AudioExportState.error(context, d.request.id)}"
+                                else -> "Đang chờ xuất file M4A"
+                            }
+                            Text(exportLabel, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                        }
                     }
                     Text(if (completed) "100%" else if (d.percentDownloaded >= 0) "${d.percentDownloaded.toInt()}%" else "…",
                         fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
@@ -522,6 +533,29 @@ private fun HistoryScreen(onListen: (String, String) -> Unit, report: (String) -
                             Icon(Icons.Default.PlayArrow, null)
                             Text("Nghe offline")
                         }
+                        val exportedUri = AudioExportState.uri(context, d.request.id)
+                        if (exportedUri != null) {
+                            TextButton(onClick = {
+                                try {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(exportedUri, "audio/mp4")
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    })
+                                } catch (e: Exception) { report("Không tìm thấy ứng dụng mở file M4A") }
+                            }) {
+                                Icon(Icons.Default.FolderOpen, null)
+                                Text("Mở file")
+                            }
+                        } else if (AudioExportState.status(context, d.request.id) != "queued" &&
+                            AudioExportState.status(context, d.request.id) != "exporting") {
+                            TextButton(onClick = {
+                                AudioExportState.request(context, d, force = true)
+                                report("Đã yêu cầu xuất file M4A")
+                            }) {
+                                Icon(Icons.Default.SaveAlt, null)
+                                Text("Xuất M4A")
+                            }
+                        }
                     }
                     if (d.state == Download.STATE_FAILED) {
                         TextButton(onClick = {
@@ -537,9 +571,8 @@ private fun HistoryScreen(onListen: (String, String) -> Unit, report: (String) -
                 }
             }
         }
-        item { Text("Các bản HLS được lưu trong bộ nhớ riêng của ứng dụng, không phải file MP3 trong thư mục Downloads. " +
-            "Gỡ app sẽ xóa bản đã tải.", fontSize = 12.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant) }
+        item { Text("Bản HLS vẫn được giữ để nghe offline trong ứng dụng. File âm thanh M4A được xuất riêng vào Download/VOV Giao Thong+ để mở bằng ứng dụng khác.",
+            fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant) }
     }
 }
 
