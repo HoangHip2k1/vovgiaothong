@@ -18,6 +18,7 @@ import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -244,7 +245,7 @@ private fun GlassCard(modifier: Modifier = Modifier, content: @Composable Column
 
 @Composable
 private fun ChannelChips(selected: String, onSelected: (String) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
         VovData.channels
             .forEach { ch ->
                 FilterChip(selected = selected == ch.id, onClick = { onSelected(ch.id) },
@@ -875,5 +876,9 @@ private fun PlayerStrip(player: MediaController) {
 
 private fun formatPlayerTime(milliseconds: Long): String {
     val totalSeconds = (milliseconds / 1000L).coerceAtLeast(0L)
-    return "%02d:%02d".format(totalSeconds / 60L, totalSeconds % 60L)
+    val hours = totalSeconds / 3600L
+    val minutes = (totalSeconds % 3600L) / 60L
+    val seconds = totalSeconds % 60L
+    return if (hours > 0L) "%02d:%02d:%02d".format(hours, minutes, seconds)
+    else "%02d:%02d".format(minutes, seconds)
 }
