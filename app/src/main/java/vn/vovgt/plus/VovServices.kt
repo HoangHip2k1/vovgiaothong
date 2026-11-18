@@ -5,6 +5,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
 import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -85,6 +87,13 @@ class VovDownloadService : DownloadService(102, 1000L, "vov_downloads", R.string
 
 @OptIn(UnstableApi::class)
 class AudioService : MediaSessionService() {
+    companion object {
+        const val ACTION_SET_SLEEP_TIMER = "vn.vovgt.plus.action.SET_SLEEP_TIMER"
+        const val ACTION_CANCEL_SLEEP_TIMER = "vn.vovgt.plus.action.CANCEL_SLEEP_TIMER"
+        const val EXTRA_DELAY_MS = "delay_ms"
+    }
+    private val sleepHandler = Handler(Looper.getMainLooper())
+    private var sleepStop: Runnable? = null
     private var session: MediaSession? = null
     override fun onCreate() {
         super.onCreate()
@@ -93,8 +102,27 @@ class AudioService : MediaSessionService() {
             .build()
         session = MediaSession.Builder(this, player).build()
     }
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            ACTION_SET_SLEEP_TIMER -> {
+                sleepStop?.let(sleepHandler::removeCallbacks)
+                val delayMs = intent.getLongExtra(EXTRA_DELAY_MS, 0L).coerceAtLeast(0L)
+                if (delayMs > 0L) {
+                    val stop = Runnable { session?.player?.pause() }
+                    sleepStop = stop
+                    sleepHandler.postDelayed(stop, delayMs)
+                }
+            }
+            ACTION_CANCEL_SLEEP_TIMER -> {
+                sleepStop?.let(sleepHandler::removeCallbacks)
+                sleepStop = null
+            }
+        }
+        return super.onStartCommand(intent, flags, startId)
+    }
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = session
     override fun onDestroy() {
+        sleepStop?.let(sleepHandler::removeCallbacks)
         session?.run { player.release(); release() }
         session = null
         super.onDestroy()
