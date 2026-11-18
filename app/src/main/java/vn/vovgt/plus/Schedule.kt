@@ -14,12 +14,14 @@ data class RadioChannel(val id: String, val name: String, val subtitle: String, 
 
 object VovData {
     private val zone = ZoneId.of("Asia/Ho_Chi_Minh")
-    val channels = listOf(
-        RadioChannel("HN", "Hà Nội", "VOV GT Hà Nội", "https://audio-lss.vov.vn/live/giao_thong_ha_noi.m3u8"),
-        RadioChannel("HCM", "TP. Hồ Chí Minh", "VOV GT TP.HCM", "https://play.vovgiaothong.vn/live/gthcm/playlist.m3u8"),
-        RadioChannel("MK", "Mekong", "VOV GT Mekong", "https://play.vovgiaothong.vn/live/mekong/playlist.m3u8"),
-        RadioChannel("DH", "Duyên Hải", "VOV GT Duyên Hải", "http://mediard.kythuatvov.vn:9087")
-    )
+ 
+val channels = listOf(
+    RadioChannel("HN", "Hà Nội", "VOV GT Hà Nội", "http://mediard.kythuatvov.vn:30083/"),
+    RadioChannel("HCM", "TP. Hồ Chí Minh", "VOV GT TP.HCM", "http://mediard.kythuatvov.vn:30080/"),
+    RadioChannel("MK", "Mekong", "VOV GT Mekong", "http://mediard.kythuatvov.vn:9085/"),
+    RadioChannel("DH", "Duyên Hải", "VOV GT Duyên Hải", "http://mediard.kythuatvov.vn:9087")
+)
+
     private val replaySlugs = mapOf("HN" to "vov-giao-thong-ha-noi", "HCM" to "vov-giao-thong-tp-hcm", "DH" to "vov-giao-thong-duyen-hai")
     fun programs(context: Context, channel: String, date: LocalDate): List<Program> {
         val json = JSONObject(context.assets.open("schedules.json").bufferedReader().use { it.readText() })
