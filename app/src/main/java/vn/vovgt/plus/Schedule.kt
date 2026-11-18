@@ -53,18 +53,28 @@ val channels = listOf(
         if (date != now.toLocalDate()) return false
         return !now.toLocalTime().isBefore(LocalTime.parse(p.start)) && now.toLocalTime().isBefore(LocalTime.parse(p.end))
     }
-    fun validPlayback(input: String): Boolean = try {
-        val u = Uri.parse(input.trim())
-        val host = u.host.orEmpty()
-        (u.scheme == "https" || (u.scheme == "http" && host == "mediard.kythuatvov.vn" && u.port == 9087)) &&
-            host.isNotBlank() && u.userInfoCompat() == null &&
-            (u.path?.endsWith(".m3u8") == true || (host == "mediard.kythuatvov.vn" && u.port == 9087))
-    } catch (_: Exception) { false }
-    fun validHls(input: String): Boolean = try {
-        val u = Uri.parse(input.trim())
-        u.scheme == "https" && !u.host.isNullOrBlank() && u.path?.endsWith(".m3u8") == true &&
-            u.userInfoCompat() == null
-    } catch (_: Exception) { false }
+
+fun validPlayback(input: String): Boolean = try {
+    val u = Uri.parse(input.trim())
+    val host = u.host.orEmpty()
+
+    val allowedHttpRadio =
+        u.scheme == "http" &&
+        host == "mediard.kythuatvov.vn" &&
+        u.port in setOf(30083, 30080, 9085, 9087)
+
+    val allowedHttpsHls =
+        u.scheme == "https" &&
+        host.isNotBlank() &&
+        u.path?.endsWith(".m3u8", ignoreCase = true) == true
+
+    (allowedHttpRadio || allowedHttpsHls) &&
+        u.userInfoCompat() == null
+
+} catch (_: Exception) {
+    false
+}
+
     private fun Uri.userInfoCompat(): String? = if (encodedAuthority?.contains('@') == true) "userinfo" else null
     fun isHls(input: String): Boolean = Uri.parse(input).path?.endsWith(".m3u8") == true
     fun isLive(input: String): Boolean = Uri.parse(input).path?.contains("/live/") == true ||
