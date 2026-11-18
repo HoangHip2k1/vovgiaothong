@@ -452,10 +452,30 @@ private fun LiveScreen(onListen: (String, String) -> Unit) {
 private fun HistoryScreen(onListen: (String, String) -> Unit, report: (String) -> Unit) {
     val context = LocalContext.current
     var list by remember { mutableStateOf<List<Download>>(emptyList()) }
+    DisposableEffect(Unit) {
+        val manager = OfflineStore.manager
+        val listener = object : androidx.media3.exoplayer.offline.DownloadManager.Listener {
+            override fun onDownloadChanged(
+                manager: androidx.media3.exoplayer.offline.DownloadManager,
+                download: Download,
+                finalException: Exception?
+            ) {
+                list = OfflineStore.downloads()
+            }
+            override fun onDownloadRemoved(
+                manager: androidx.media3.exoplayer.offline.DownloadManager,
+                download: Download
+            ) {
+                list = OfflineStore.downloads()
+            }
+        }
+        manager.addListener(listener)
+        onDispose { manager.removeListener(listener) }
+    }
     LaunchedEffect(Unit) {
         while (true) {
             try { list = OfflineStore.downloads() } catch (_: Exception) { }
-            delay(1000)
+            delay(500)
         }
     }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -526,8 +546,11 @@ private fun HistoryScreen(onListen: (String, String) -> Unit, report: (String) -
                     trackColor = MaterialTheme.colorScheme.surfaceVariant
                 )
                 Spacer(Modifier.height(8.dp))
-                Text("${d.bytesDownloaded / 1024} KB đã lưu", fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    if (completed) "${d.bytesDownloaded / 1024} KB đã lưu · Hoàn tất"
+                    else "${d.bytesDownloaded / 1024} KB đã tải · ${if (d.percentDownloaded >= 0) String.format("%.1f", d.percentDownloaded) + "%" else "Đang tính"}",
+                    fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (completed) {
                         TextButton(onClick = { onListen(d.request.uri.toString(), OfflineStore.title(d)) }) {
