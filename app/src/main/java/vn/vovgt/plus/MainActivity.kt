@@ -90,7 +90,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private enum class Tab(val label: String) { SCHEDULE("Lịch phát"), LIVE("Trực tiếp"), HISTORY("Đã tải"), ACCOUNT("Tài khoản") }
+private enum class Tab(val label: String) { LIVE("Trực tiếp"), SCHEDULE("Lịch phát"), HISTORY("Đã tải"), ACCOUNT("Tài khoản") }
 private data class QueuedMedia(val url: String, val title: String)
 
 @Composable
@@ -106,7 +106,7 @@ private fun VovPlusApp(player: MediaController?) {
     val report: (String) -> Unit = { scope.launch { snackbar.showSnackbar(it) } }
     val download: (String, String) -> Unit = { url, title ->
         when {
-            !VovData.validHls(url) -> report("Đường dẫn không hợp lệ. Cần HTTPS .m3u8")
+            !VovData.validHls(url) -> report("Đường dẫn tải không hợp lệ. Chỉ hỗ trợ HTTPS .m3u8")
             VovData.isLive(url) -> report("Kênh trực tiếp chỉ hỗ trợ nghe. Hãy tải chương trình phát lại.")
             !confirmedSession -> {
                 pending = QueuedMedia(url, title)
@@ -121,11 +121,11 @@ private fun VovPlusApp(player: MediaController?) {
         }
     }
     val listen: (String, String) -> Unit = { url, title ->
-        if (!VovData.validHls(url)) report("Link phát không hợp lệ")
+        if (!VovData.validPlayback(url)) report("Link phát không hợp lệ")
         else if (player == null) report("Đang kết nối bộ phát âm thanh, thử lại sau.")
         else try {
             val media = MediaItem.Builder().setUri(url).setMediaId(url)
-                .setMimeType(MimeTypes.APPLICATION_M3U8)
+                .setMimeType(if (VovData.isHls(url)) MimeTypes.APPLICATION_M3U8 else MimeTypes.AUDIO_MPEG)
                 .setMediaMetadata(MediaMetadata.Builder().setTitle(title).setArtist("VOV Giao thông+").build())
                 .build()
             player.setMediaItem(media)
@@ -245,7 +245,7 @@ private fun GlassCard(modifier: Modifier = Modifier, content: @Composable Column
 @Composable
 private fun ChannelChips(selected: String, onSelected: (String) -> Unit) {
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-        VovData.channels.filter { it.id == "HN" || it.id == "HCM" || it.id == "DH" }
+        VovData.channels
             .forEach { ch ->
                 FilterChip(selected = selected == ch.id, onClick = { onSelected(ch.id) },
                     label = { Text(ch.name, maxLines = 1, fontSize = 12.sp) })
@@ -294,11 +294,11 @@ private fun ScheduleScreen(
             }
             Spacer(Modifier.height(12.dp))
             GlassCard {
-                Text("Dán link .m3u8 đã sao chép", fontWeight = FontWeight.SemiBold)
+                Text("Dán link phát lại hoặc link .m3u8", fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = pasted, onValueChange = { pasted = it }, modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("https://vovmedia.vn/replay/…") },
+                    placeholder = { Text("https://…/playlist.m3u8") },
                     minLines = 1, maxLines = 3, textStyle = MaterialTheme.typography.bodySmall
                 )
                 Spacer(Modifier.height(9.dp))
@@ -324,7 +324,7 @@ private fun ScheduleScreen(
                     Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.height(7.dp))
                     Text("Chưa có lịch phát lại cho khu vực này", fontWeight = FontWeight.Bold)
-                    Text("Bạn vẫn có thể nghe trực tiếp Duyên Hải ở tab Trực tiếp.",
+                    Text("Bạn vẫn có thể nghe trực tiếp ở tab Trực tiếp.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
@@ -414,7 +414,7 @@ private fun LiveScreen(onListen: (String, String) -> Unit) {
                     Spacer(Modifier.height(12.dp))
                     Text("Lắng nghe mọi nẻo đường", color = Color.White, fontSize = 24.sp,
                         fontWeight = FontWeight.ExtraBold)
-                    Text("4 kênh phát thanh trực tiếp · HLS", color = Color.White.copy(alpha = .83f))
+                    Text("4 kênh phát thanh trực tiếp · HLS / MP3", color = Color.White.copy(alpha = .83f))
                 }
             }
             Spacer(Modifier.height(16.dp))
@@ -682,45 +682,167 @@ private fun AccountScreen(confirmed: Boolean, onConfirmed: () -> Unit, onLogout:
 
 @Composable
 private fun PlayerStrip(player: MediaController) {
+    val context = LocalContext.current
     var playing by remember(player) { mutableStateOf(player.isPlaying) }
     var label by remember(player) { mutableStateOf(player.currentMediaItem?.mediaMetadata?.title?.toString().orEmpty()) }
     var error by remember(player) { mutableStateOf<String?>(null) }
+    var expanded by remember(player) { mutableStateOf(false) }
+    var position by remember(player) { mutableLongStateOf(player.currentPosition.coerceAtLeast(0L)) }
+    var duration by remember(player) { mutableLongStateOf(player.duration.coerceAtLeast(0L)) }
+    var timerEnd by remember { mutableLongStateOf(context.getSharedPreferences("vov_sleep_timer", Context.MODE_PRIVATE).getLong("end", 0L)) }
+    var remaining by remember { mutableLongStateOf((timerEnd - System.currentTimeMillis()).coerceAtLeast(0L)) }
+    var showTimer by remember { mutableStateOf(false) }
+    var timerMinutes by remember { mutableFloatStateOf(30f) }
+
+    LaunchedEffect(player) {
+        while (true) {
+            position = player.currentPosition.coerceAtLeast(0L)
+            duration = player.duration.coerceAtLeast(0L)
+            delay(500)
+        }
+    }
+    LaunchedEffect(timerEnd) {
+        while (timerEnd > 0L) {
+            val left = timerEnd - System.currentTimeMillis()
+            remaining = left.coerceAtLeast(0L)
+            if (left <= 0L) {
+                player.pause()
+                timerEnd = 0L
+                context.getSharedPreferences("vov_sleep_timer", Context.MODE_PRIVATE).edit().remove("end").apply()
+                break
+            }
+            delay(1000)
+        }
+    }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) { playing = isPlaying }
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 label = mediaItem?.mediaMetadata?.title?.toString().orEmpty()
                 error = null
+                position = 0L
+                duration = player.duration.coerceAtLeast(0L)
             }
             override fun onPlayerError(playerError: androidx.media3.common.PlaybackException) {
-                error = "Không phát được: ${playerError.errorCodeName}. Kiểm tra mạng / quyền đăng nhập."
+                error = "Không phát được: ${playerError.errorCodeName}. Kiểm tra mạng / quyền truy cập."
+            }
+            override fun onPlaybackStateChanged(state: Int) {
+                duration = player.duration.coerceAtLeast(0L)
             }
         }
         player.addListener(listener)
         onDispose { player.removeListener(listener) }
     }
     if (label.isNotBlank() || error != null) {
-        Surface(color = Deep, shadowElevation = 5.dp) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 9.dp),
-                verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.size(38.dp).background(Cyan, CircleShape), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Deep)
+        Surface(color = Deep, shadowElevation = 7.dp) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 9.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(40.dp).background(Cyan, CircleShape), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.GraphicEq, contentDescription = null, tint = Deep)
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(if (error == null) label else "Lỗi phát âm thanh", color = Color.White,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(error ?: if (playing) "Đang phát" else "Tạm dừng",
+                            color = Cyan, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    IconButton(onClick = { expanded = !expanded }) {
+                        Icon(if (expanded) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
+                            contentDescription = "Mở rộng trình phát", tint = Color.White)
+                    }
+                    IconButton(onClick = { if (playing) player.pause() else player.play() }) {
+                        Icon(if (playing) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
+                            contentDescription = if (playing) "Tạm dừng" else "Phát", tint = Color.White, modifier = Modifier.size(30.dp))
+                    }
+                    IconButton(onClick = { player.stop(); player.clearMediaItems(); label = ""; error = null }) {
+                        Icon(Icons.Default.Close, contentDescription = "Dừng nghe", tint = Color.White)
+                    }
                 }
-                Spacer(Modifier.width(10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(if (error == null) label else "Lỗi phát âm thanh", color = Color.White,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                    Text(error ?: if (playing) "Đang phát" else "Tạm dừng", color = Cyan, fontSize = 11.sp,
+                if (expanded) {
+                    Spacer(Modifier.height(7.dp))
+                    Text(label, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold,
                         maxLines = 2, overflow = TextOverflow.Ellipsis)
-                }
-                IconButton(onClick = { if (playing) player.pause() else player.play() }) {
-                    Icon(if (playing) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
-                        contentDescription = if (playing) "Tạm dừng" else "Phát", tint = Color.White, modifier = Modifier.size(30.dp))
-                }
-                IconButton(onClick = { player.stop(); player.clearMediaItems(); label = ""; error = null }) {
-                    Icon(Icons.Default.Close, contentDescription = "Dừng nghe", tint = Color.White)
+                    if (duration > 0L && duration < 24L * 60L * 60L * 1000L) {
+                        Slider(
+                            value = position.coerceAtMost(duration).toFloat(),
+                            onValueChange = { position = it.toLong() },
+                            onValueChangeFinished = { player.seekTo(position.coerceIn(0L, duration)) },
+                            valueRange = 0f..duration.toFloat(),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(formatPlayerTime(position), color = Color.White.copy(alpha = .8f), fontSize = 11.sp)
+                            Text(formatPlayerTime(duration), color = Color.White.copy(alpha = .8f), fontSize = 11.sp)
+                        }
+                    } else {
+                        Text("Luồng trực tiếp · không hỗ trợ tua", color = Color.White.copy(alpha = .7f), fontSize = 11.sp)
+                    }
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { player.seekBack() }, enabled = duration > 0L) {
+                            Icon(Icons.Default.Replay10, null, tint = Color.White)
+                        }
+                        IconButton(onClick = { if (playing) player.pause() else player.play() }) {
+                            Icon(if (playing) Icons.Default.PauseCircleFilled else Icons.Default.PlayCircleFilled,
+                                null, tint = Cyan, modifier = Modifier.size(42.dp))
+                        }
+                        IconButton(onClick = { player.seekForward() }, enabled = duration > 0L) {
+                            Icon(Icons.Default.Forward10, null, tint = Color.White)
+                        }
+                    }
+                    HorizontalDivider(color = Color.White.copy(alpha = .2f))
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Bedtime, tint = Cyan, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("Hẹn giờ tắt", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                            Text(if (timerEnd > 0L) "Còn lại ${formatPlayerTime(remaining)}" else "Chưa đặt hẹn giờ",
+                                color = Cyan, fontSize = 11.sp)
+                        }
+                        TextButton(onClick = { showTimer = true }) { Text("Đặt giờ", color = Cyan) }
+                        if (timerEnd > 0L) {
+                            TextButton(onClick = {
+                                timerEnd = 0L
+                                context.getSharedPreferences("vov_sleep_timer", Context.MODE_PRIVATE).edit().remove("end").apply()
+                            }) { Text("Hủy", color = Color.White) }
+                        }
+                    }
                 }
             }
         }
     }
+    if (showTimer) {
+        AlertDialog(
+            onDismissRequest = { showTimer = false },
+            title = { Text("Hẹn giờ tắt phát") },
+            text = {
+                Column {
+                    Text("Ứng dụng sẽ tự dừng phát sau thời gian đã chọn.")
+                    Spacer(Modifier.height(12.dp))
+                    Text("${timerMinutes.toInt()} phút", fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary)
+                    Slider(value = timerMinutes, onValueChange = { timerMinutes = it },
+                        valueRange = 5f..180f, steps = 34)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("5 phút", style = MaterialTheme.typography.labelSmall)
+                        Text("180 phút", style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    timerEnd = System.currentTimeMillis() + timerMinutes.toLong() * 60_000L
+                    context.getSharedPreferences("vov_sleep_timer", Context.MODE_PRIVATE).edit()
+                        .putLong("end", timerEnd).apply()
+                    showTimer = false
+                }) { Text("Bắt đầu đếm ngược") }
+            },
+            dismissButton = { TextButton(onClick = { showTimer = false }) { Text("Đóng") } }
+        )
+    }
+}
+
+private fun formatPlayerTime(milliseconds: Long): String {
+    val totalSeconds = (milliseconds / 1000L).coerceAtLeast(0L)
+    return "%02d:%02d".format(totalSeconds / 60L, totalSeconds % 60L)
 }
