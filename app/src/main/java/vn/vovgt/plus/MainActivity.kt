@@ -805,6 +805,9 @@ private fun PlayerStrip(player: MediaController) {
                             TextButton(onClick = {
                                 timerEnd = 0L
                                 context.getSharedPreferences("vov_sleep_timer", Context.MODE_PRIVATE).edit().remove("end").apply()
+                                context.startService(Intent(context, AudioService::class.java).apply {
+                                    action = AudioService.ACTION_CANCEL_SLEEP_TIMER
+                                })
                             }) { Text("Hủy", color = Color.White) }
                         }
                     }
@@ -835,6 +838,10 @@ private fun PlayerStrip(player: MediaController) {
                     timerEnd = System.currentTimeMillis() + timerMinutes.toLong() * 60_000L
                     context.getSharedPreferences("vov_sleep_timer", Context.MODE_PRIVATE).edit()
                         .putLong("end", timerEnd).apply()
+                    context.startService(Intent(context, AudioService::class.java).apply {
+                        action = AudioService.ACTION_SET_SLEEP_TIMER
+                        putExtra(AudioService.EXTRA_DELAY_MS, timerMinutes.toLong() * 60_000L)
+                    })
                     showTimer = false
                 }) { Text("Bắt đầu đếm ngược") }
             },
