@@ -330,9 +330,10 @@ private fun ScheduleScreen(
             }
         } else {
             items(programs, key = { "${it.start}-${it.title}" }) { program ->
-                val url = remember(ch, date, program) { VovData.link(ch, date, program) }
+                val replayAvailable = ch != "MK"
+                val url = remember(ch, date, program) { if (replayAvailable) VovData.link(ch, date, program) else "" }
                 ProgramCard(program = program, isLive = VovData.isOnAir(date, program),
-                    finished = VovData.isFinished(date, program),
+                    finished = VovData.isFinished(date, program), canReplay = replayAvailable,
                     onCopy = { onCopy(url) },
                     onPlay = { onListen(url, program.title) },
                     onDownload = { onDownload(url, program.title) })
@@ -348,7 +349,7 @@ private fun ScheduleScreen(
 
 @Composable
 private fun ProgramCard(
-    program: Program, isLive: Boolean, finished: Boolean,
+    program: Program, isLive: Boolean, finished: Boolean, canReplay: Boolean = true,
     onCopy: () -> Unit, onPlay: () -> Unit, onDownload: () -> Unit
 ) {
     GlassCard {
@@ -382,18 +383,18 @@ private fun ProgramCard(
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .45f))
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onCopy, modifier = Modifier.size(36.dp)) {
+            IconButton(onClick = onCopy, enabled = canReplay, modifier = Modifier.size(36.dp)) {
                 Icon(Icons.Default.ContentCopy, contentDescription = "Sao chép link", modifier = Modifier.size(19.dp))
             }
-            OutlinedButton(onClick = onPlay, modifier = Modifier.weight(1f), enabled = finished) {
+            OutlinedButton(onClick = onPlay, modifier = Modifier.weight(1f), enabled = finished && canReplay) {
                 Icon(Icons.Default.PlayCircleOutline, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(4.dp))
                 Text("Nghe thử", fontSize = 12.sp)
             }
-            Button(onClick = onDownload, modifier = Modifier.weight(1f), enabled = finished) {
+            Button(onClick = onDownload, modifier = Modifier.weight(1f), enabled = finished && canReplay) {
                 Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(17.dp))
                 Spacer(Modifier.width(4.dp))
-                Text("Tải", fontSize = 12.sp)
+                Text(if (canReplay) "Tải" else "Chưa có link", fontSize = 12.sp)
             }
         }
     }
