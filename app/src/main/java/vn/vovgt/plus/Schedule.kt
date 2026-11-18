@@ -75,6 +75,13 @@ fun validPlayback(input: String): Boolean = try {
     false
 }
 
+    // Keep the existing download validation: downloads still require HTTPS HLS playlists.
+    fun validHls(input: String): Boolean = try {
+        val u = Uri.parse(input.trim())
+        u.scheme == "https" && !u.host.isNullOrBlank() && u.path?.endsWith(".m3u8") == true &&
+            u.userInfoCompat() == null
+    } catch (_: Exception) { false }
+
     private fun Uri.userInfoCompat(): String? = if (encodedAuthority?.contains('@') == true) "userinfo" else null
     fun isHls(input: String): Boolean = Uri.parse(input).path?.endsWith(".m3u8") == true
     fun isLive(input: String): Boolean = Uri.parse(input).path?.contains("/live/") == true ||
