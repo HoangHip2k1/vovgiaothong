@@ -548,8 +548,9 @@ private fun HistoryScreen(onListen: (String, String) -> Unit, report: (String) -
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    if (completed) "${d.bytesDownloaded / 1024} KB đã lưu · Hoàn tất"
-                    else "${d.bytesDownloaded / 1024} KB đã tải · ${if (d.percentDownloaded >= 0) String.format("%.1f", d.percentDownloaded) + "%" else "Đang tính"}",
+                    if (completed) "${formatDownloadBytes(d.bytesDownloaded)} đã lưu · Hoàn tất"
+                    else if (d.contentLength > 0L) "${formatDownloadBytes(d.bytesDownloaded)} / ${formatDownloadBytes(d.contentLength)} · ${if (d.percentDownloaded >= 0) String.format("%.1f", d.percentDownloaded) + "%" else "Đang tính"}"
+                    else "${formatDownloadBytes(d.bytesDownloaded)} đã tải · ${if (d.percentDownloaded >= 0) String.format("%.1f", d.percentDownloaded) + "%" else "Đang tính"}",
                     fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -881,4 +882,15 @@ private fun formatPlayerTime(milliseconds: Long): String {
     val seconds = totalSeconds % 60L
     return if (hours > 0L) "%02d:%02d:%02d".format(hours, minutes, seconds)
     else "%02d:%02d".format(minutes, seconds)
+}
+
+
+private fun formatDownloadBytes(bytes: Long): String {
+    val value = bytes.coerceAtLeast(0L).toDouble()
+    return when {
+        value >= 1024.0 * 1024.0 * 1024.0 -> String.format("%.2f GB", value / (1024.0 * 1024.0 * 1024.0))
+        value >= 1024.0 * 1024.0 -> String.format("%.1f MB", value / (1024.0 * 1024.0))
+        value >= 1024.0 -> String.format("%.0f KB", value / 1024.0)
+        else -> "$bytes B"
+    }
 }
