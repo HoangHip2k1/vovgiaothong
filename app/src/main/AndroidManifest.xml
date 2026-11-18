@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <application
+        android:networkSecurityConfig="@xml/network_security_config"
         android:name=".VovApplication"
         android:label="VOV Giao thông+"
         android:allowBackup="false"
