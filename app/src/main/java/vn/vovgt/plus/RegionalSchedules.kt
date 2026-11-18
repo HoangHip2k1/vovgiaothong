@@ -184,13 +184,20 @@ object RegionalSchedules {
     """)
 
     fun programs(channel: String, date: LocalDate): List<Program> = when (channel) {
-        "MK" -> {
-            val eveningTitle = when (date.dayOfWeek) {
-                DayOfWeek.SUNDAY, DayOfWeek.SATURDAY -> RELAY_MEKONG
-                DayOfWeek.TUESDAY, DayOfWeek.THURSDAY -> "Hương lúa trong đêm (phát lại)"
-                else -> "Hương lúa trong đêm"
+        "MK" -> when (date) {
+            LocalDate.of(2026, 11, 16) -> mekongBase
+            LocalDate.of(2026, 11, 17) -> mekongBase.map {
+                if (it.start == "19:00") it.copy(title = "Hương lúa trong đêm (phát lại)") else it
             }
-            mekongBase.map { if (it.start == "19:00") it.copy(title = eveningTitle) else it }
+            // 18/11/2026 is absent from the supplied Mekong schedule; do not infer it.
+            LocalDate.of(2026, 11, 19) -> mekongBase.map {
+                if (it.start == "19:00") it.copy(title = "Hương lúa trong đêm (phát lại)") else it
+            }
+            LocalDate.of(2026, 11, 20) -> mekongBase
+            LocalDate.of(2026, 11, 21) -> mekongBase.map {
+                if (it.start == "19:00") it.copy(title = RELAY_MEKONG) else it
+            }
+            else -> emptyList()
         }
         "DH" -> if (date.dayOfWeek == DayOfWeek.SUNDAY) duyenHaiSunday else duyenHaiWeekday
         else -> emptyList()
