@@ -15,14 +15,16 @@ data class RadioChannel(val id: String, val name: String, val subtitle: String, 
 object VovData {
     private val zone = ZoneId.of("Asia/Ho_Chi_Minh")
     val channels = listOf(
-        RadioChannel("HN", "Hà Nội", "VOV GT Hà Nội", "https://play.vovgiaothong.vn/live/gthn3/playlist.m3u8"),
-        RadioChannel("HCM", "TP. Hồ Chí Minh", "VOV GT TP.HCM", "https://play.vovgiaothong.vn/live/gthcm3/playlist.m3u8"),
-        RadioChannel("MK", "Mekong", "VOV GT Mekong", "https://play.vovgiaothong.vn/live/mekong3/playlist.m3u8"),
-        RadioChannel("DH", "Duyên Hải", "VOV GT Duyên Hải", "https://play.vovgiaothong.vn/live/duyenhai2/playlist.m3u8")
+        RadioChannel("HN", "Hà Nội", "VOV GT Hà Nội", "https://audio-lss.vov.vn/live/giao_thong_ha_noi.m3u8"),
+        RadioChannel("HCM", "TP. Hồ Chí Minh", "VOV GT TP.HCM", "https://play.vovgiaothong.vn/live/gthcm/playlist.m3u8"),
+        RadioChannel("MK", "Mekong", "VOV GT Mekong", "https://play.vovgiaothong.vn/live/mekong/playlist.m3u8"),
+        RadioChannel("DH", "Duyên Hải", "VOV GT Duyên Hải", "http://mediard.kythuatvov.vn:9087")
     )
-    private val replaySlugs = mapOf("HN" to "vov-giao-thong-ha-noi", "HCM" to "vov-giao-thong-tp-hcm")
+    private val replaySlugs = mapOf("HN" to "vov-giao-thong-ha-noi", "HCM" to "vov-giao-thong-tp-hcm", "DH" to "vov-giao-thong-duyen-hai")
     fun programs(context: Context, channel: String, date: LocalDate): List<Program> {
         val json = JSONObject(context.assets.open("schedules.json").bufferedReader().use { it.readText() })
+        val regional = if (channel == "MK" || channel == "DH") RegionalSchedules.programs(channel, date) else emptyList()
+        if (regional.isNotEmpty()) return regional
         val day = json.optJSONObject(channel)?.optJSONArray((date.dayOfWeek.value % 7).toString()) ?: return emptyList()
         return (0 until day.length()).map { index ->
             val obj = day.getJSONObject(index)
@@ -49,12 +51,21 @@ object VovData {
         if (date != now.toLocalDate()) return false
         return !now.toLocalTime().isBefore(LocalTime.parse(p.start)) && now.toLocalTime().isBefore(LocalTime.parse(p.end))
     }
+    fun validPlayback(input: String): Boolean = try {
+        val u = Uri.parse(input.trim())
+        val host = u.host.orEmpty()
+        (u.scheme == "https" || (u.scheme == "http" && host == "mediard.kythuatvov.vn" && u.port == 9087)) &&
+            host.isNotBlank() && u.userInfoCompat() == null &&
+            (u.path?.endsWith(".m3u8") == true || (host == "mediard.kythuatvov.vn" && u.port == 9087))
+    } catch (_: Exception) { false }
     fun validHls(input: String): Boolean = try {
         val u = Uri.parse(input.trim())
         u.scheme == "https" && !u.host.isNullOrBlank() && u.path?.endsWith(".m3u8") == true &&
             u.userInfoCompat() == null
     } catch (_: Exception) { false }
     private fun Uri.userInfoCompat(): String? = if (encodedAuthority?.contains('@') == true) "userinfo" else null
-    fun isLive(input: String): Boolean = Uri.parse(input).path?.contains("/live/") == true
+    fun isHls(input: String): Boolean = Uri.parse(input).path?.endsWith(".m3u8") == true
+    fun isLive(input: String): Boolean = Uri.parse(input).path?.contains("/live/") == true ||
+        Uri.parse(input).host == "mediard.kythuatvov.vn"
     fun dateLabel(date: LocalDate): String = date.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
 }
